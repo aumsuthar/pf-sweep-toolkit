@@ -1,0 +1,14 @@
+__pycache__/
+*.pyc
+.venv/
+.DS_Store
+# never commit simulation output or collaborator data
+*.vtk
+*.vtu
+*.xlsx
+*.csv
+output_files/
+input_files/
+conc/
+MT_*
+*.log
