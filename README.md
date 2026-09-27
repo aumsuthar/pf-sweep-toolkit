@@ -205,6 +205,79 @@ resolution.
 
 ---
 
+## Configuration
+
+Nothing here reads a config file by default — the sweep driver takes its
+settings inline per run (so two sweeps can differ), and the analysis scripts
+read three environment variables. For convenience a `.env.example` is
+provided:
+
+```bash
+cp .env.example .env     # then edit
+set -a; source .env; set +a
+python3 analysis/plot_set1.py
+```
+
+| variable | used by | meaning |
+|---|---|---|
+| `SIM_DIR` | analysis | directory holding `set1_results.csv` and `set1_summary.csv` |
+| `OUT_NAME` | `make_cm_excel.py` | workbook filename to write |
+| `FIG_SUFFIX` | analysis | suffix on figure filenames, so several sweeps can coexist |
+
+`.env` is gitignored. There are no credentials in it — the cluster connection
+is handled separately (below).
+
+---
+
+## Driving this from Claude Code (optional)
+
+The sweeps in this project were run through [pfmcp](https://github.com/aumsuthar/pfmcp),
+a set of MCP servers that give Claude Code direct SSH/SLURM access to the
+cluster. It is not required — every script here runs perfectly well from a
+normal shell on the login node — but it is how the workflow was actually
+operated, and it is what makes unattended multi-day sweeps practical to
+supervise.
+
+Setup, from pfmcp's own README:
+
+```bash
+git clone https://github.com/aumsuthar/pfmcp
+cd pfmcp
+
+# pf-sim (TypeScript) — the SSH/SLURM server, the one this toolkit needs
+cd pf-sim && npm install && npm run build
+cp .env.example .env          # fill in SLURM_HOST / SLURM_USERNAME / SLURM_PASSWORD
+cd ..
+
+# the Python servers (analysis/visualisation; optional for this toolkit)
+for s in pf-core pf-data pf-analysis pf-viz; do
+  python3 -m venv $s/.venv
+  $s/.venv/bin/pip install -e $s
+done
+```
+
+Register the servers (use absolute paths):
+
+```bash
+claude mcp add pf-sim      -s user -- node --env-file=/ABS/pfmcp/pf-sim/.env /ABS/pfmcp/pf-sim/dist/index.js
+claude mcp add pf-data     -s user -- /ABS/pfmcp/pf-data/.venv/bin/pf-data
+claude mcp add pf-analysis -s user -- /ABS/pfmcp/pf-analysis/.venv/bin/pf-analysis
+claude mcp add pf-viz      -s user -- /ABS/pfmcp/pf-viz/.venv/bin/pf-viz
+```
+
+Restart Claude Code and the `mcp__pf-sim__*` tools appear. `pf-sim` is the only
+one this toolkit depends on; it provides `slurm_run`, `slurm_submit_job`,
+`slurm_upload_file`, `slurm_download_file` and friends.
+
+Note the two `.env` files are different things and easy to confuse:
+
+* **`pfmcp/pf-sim/.env`** — cluster credentials (`SLURM_HOST`,
+  `SLURM_USERNAME`, `SLURM_PASSWORD`). Never commit this one.
+* **`pf-sweep-toolkit/.env`** — local paths for the analysis scripts. No
+  secrets.
+
+---
+
 ## Analysis
 
 ```bash
