@@ -269,12 +269,61 @@ Restart Claude Code and the `mcp__pf-sim__*` tools appear. `pf-sim` is the only
 one this toolkit depends on; it provides `slurm_run`, `slurm_submit_job`,
 `slurm_upload_file`, `slurm_download_file` and friends.
 
-Note the two `.env` files are different things and easy to confuse:
+### Cluster credentials
 
-* **`pfmcp/pf-sim/.env`** — cluster credentials (`SLURM_HOST`,
-  `SLURM_USERNAME`, `SLURM_PASSWORD`). Never commit this one.
-* **`pf-sweep-toolkit/.env`** — local paths for the analysis scripts. No
-  secrets.
+`pf-sim/.env` is the whole of it:
+
+```ini
+SLURM_HOST=cluster.example.edu
+SLURM_USERNAME=yourid
+SLURM_PASSWORD=yourpassword
+```
+
+`OSC_HOST` / `OSC_USERNAME` / `OSC_PASSWORD` are accepted as fallbacks for the
+same three values.
+
+**Know what this is before you use it.** `pf-sim` opens a plain SSH connection
+on port 22 with password authentication:
+
+```ts
+.connect({ host, port: 22, username, password })
+```
+
+Consequences worth being deliberate about:
+
+* **Your cluster password sits in plaintext** in that file. Keep it outside any
+  repo, `chmod 600` it, and do not sync it. It is not gitignored for you — it
+  lives in the pfmcp checkout, not here.
+* **There is no key-based auth and no 2FA path.** The client has no
+  `privateKey`, `passphrase` or keyboard-interactive handling. If your cluster
+  requires an SSH key, or enforces Duo/MFA on SSH, `pf-sim` will not connect
+  and no `.env` value will fix it — the client needs extending first.
+* Sites that allow password SSH often only allow it from campus or VPN, so
+  connect to that first.
+
+If any of that is a blocker, use the toolkit without MCP — nothing here
+requires it.
+
+### Running it without MCP
+
+Every script is an ordinary shell or Python script. The MCP servers only let
+Claude Code drive them remotely; they are not a dependency.
+
+```bash
+# on the login node
+ssh you@cluster.example.edu
+cd /path/to/your/simulation
+nohup setsid env SWEEP_TAG="run01" CYCLE_LOAD_LEVELS="..." \
+  bash run_load_unload.sh > cycle.log 2>&1 < /dev/null & disown
+
+# pull results back and analyse locally
+scp -r you@cluster:/path/to/sim/MT_* ./results/
+set -a; source .env; set +a
+python3 analysis/plot_set1.py
+```
+
+This is the path to use if your cluster needs keys or MFA, or if you would
+rather not put a password in a file.
 
 ---
 
